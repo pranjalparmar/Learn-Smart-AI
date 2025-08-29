@@ -1,0 +1,5 @@
+{
+  "name": "IntelliStudy AI",
+  "description": "A user-friendly web application that helps students and learners turn their lecture notes or study materials (uploaded as PDF or TXT files) into high-quality, interactive flashcards, realistic exam-style Q&A, and concept maps.",
+  "requestFramePermissions": []
+}
