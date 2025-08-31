@@ -63,12 +63,12 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUpload }) => {
                      <InfoCard 
                         icon={<UploadCloud size={40} />} 
                         title="1. Upload Your Notes" 
-                        description="Drag and drop or select your PDF or TXT files. The more context you provide, the better."
+                        description="Drag and drop or select your PDF, TXT, DOCX, or PPTX files. The more context, the better."
                      />
                      <InfoCard 
                         icon={<Sparkles size={40} />} 
                         title="2. AI-Powered Generation" 
-                        description="Our AI instantly analyzes your material to create flashcards and in-depth Q&A."
+                        description="Our AI instantly analyzes your material to create flashcards, Q&A, and concept maps."
                      />
                      <InfoCard 
                         icon={<BookOpen size={40} />} 
@@ -91,7 +91,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUpload }) => {
                         id="file-upload"
                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                         onChange={handleFileChange}
-                        accept=".pdf,.txt"
+                        accept=".pdf,.txt,.docx,.pptx,.doc,.ppt"
                         multiple
                     />
                     <div className="flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 pointer-events-none">
@@ -100,7 +100,8 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUpload }) => {
                             Drag & drop your files here
                         </p>
                         <p className="mt-1 text-sm">or <span className="font-semibold text-blue-600 dark:text-blue-400">click to browse</span></p>
-                        <p className="mt-4 text-xs text-slate-400 dark:text-slate-500">Supports PDF and TXT files</p>
+                        <p className="mt-4 text-xs text-slate-400 dark:text-slate-500">Supports PDF, TXT, DOCX, PPTX files</p>
+                         <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">(.doc & .ppt files have limited support and should be saved as modern formats)</p>
                     </div>
                 </div>
             </div>

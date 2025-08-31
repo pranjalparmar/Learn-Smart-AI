@@ -1,83 +1,101 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { Flashcard, QA } from '../types';
+import { GeneratedTopicNode, GeneratedContentPayload } from '../types';
 
-const API_KEY = process.env.API_KEY;
-if (!API_KEY) {
-    throw new Error("API_KEY environment variable not set");
-}
-
-const ai = new GoogleGenAI({ apiKey: API_KEY });
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const model = 'gemini-2.5-flash';
 
-const generateContent = async <T,>(prompt: string, responseSchema: object): Promise<T> => {
-    try {
-        const result = await ai.models.generateContent({
-            model,
-            contents: prompt,
-            config: { responseMimeType: "application/json", responseSchema },
-        });
-        const jsonString = result.text.trim();
-        return JSON.parse(jsonString) as T;
-    } catch (error) {
-        console.error("Gemini API call failed:", error);
-        throw new Error("Failed to generate content from AI. The model may have returned an invalid response.");
-    }
-};
-
-export const generateFlashcards = async (text: string): Promise<Omit<Flashcard, 'studyStatus'>[]> => {
-    const prompt = `Based on the following study material, generate a set of high-quality, exam-relevant flashcards. Your output must strictly focus on core academic content.
+export const generateConceptMapStructure = async (text: string): Promise<GeneratedTopicNode[]> => {
+    const prompt = `Based on the following study material, generate a hierarchical concept map of topics and sub-topics.
 
     **RULES:**
-    1.  **Focus exclusively on**: key definitions, core concepts, important facts, processes, and principles.
-    2.  **Generate questions that would plausibly appear on a test or exam.**
-    3.  **STRICTLY EXCLUDE**: any questions about the document's structure, metadata, lecturer's name, page numbers, generic instructions (e.g., "see figure 1.2"), or any other non-subject matter content. The output should be purely academic.
-    4.  Each flashcard must have a clear question and a concise, accurate answer.
+    1.  **Hierarchical Structure**: Analyze the text to identify main topics and sub-topics. Organize them into a logical parent-child hierarchy.
+    2.  **Unique IDs**: Assign a unique string ID to every single topic node (e.g., 'topic-1712345678-0').
+    3.  **STRUCTURE ONLY**: The output must ONLY contain the hierarchical structure of 'id' and 'label' for each node. Do NOT generate any flashcards or Q&A content in this step.
+    4.  **Output Format**: The final output must be a JSON object matching the provided schema, with an array of main topic nodes at the root.
 
     Study Material:
     """
     ${text}
     """`;
 
-    const flashcardSchema = {
-        type: Type.OBJECT,
-        properties: {
-            question: { type: Type.STRING, description: "The question for the front of the flashcard." },
-            answer: { type: Type.STRING, description: "The answer for the back of the flashcard." }
-        },
-        required: ["question", "answer"]
+    const baseNodeProps = {
+        id: { type: Type.STRING },
+        label: { type: Type.STRING },
     };
+    
+    const requiredProps = ["id", "label"];
+
+    // Recursive schema definition up to 4 levels deep
+    const topicNodeSchemaL4 = { type: Type.OBJECT, properties: baseNodeProps, required: requiredProps };
+    const topicNodeSchemaL3 = { type: Type.OBJECT, properties: { ...baseNodeProps, children: { type: Type.ARRAY, items: topicNodeSchemaL4 } }, required: requiredProps };
+    const topicNodeSchemaL2 = { type: Type.OBJECT, properties: { ...baseNodeProps, children: { type: Type.ARRAY, items: topicNodeSchemaL3 } }, required: requiredProps };
+    const topicNodeSchemaL1 = { type: Type.OBJECT, properties: { ...baseNodeProps, children: { type: Type.ARRAY, items: topicNodeSchemaL2 } }, required: requiredProps };
 
     const responseSchema = {
         type: Type.OBJECT,
         properties: {
-            flashcards: {
+            studyTopics: {
                 type: Type.ARRAY,
-                items: flashcardSchema,
-                description: "An array of flashcard objects."
+                items: topicNodeSchemaL1,
+                description: "The root of the structured study materials."
             }
         },
-        required: ["flashcards"]
+        required: ["studyTopics"]
     };
-    
-    const result = await generateContent<{ flashcards: { question: string; answer: string }[] }>(prompt, responseSchema);
-    return result.flashcards.map((fc, index) => ({ ...fc, id: `fc-${Date.now()}-${index}` }));
+
+    try {
+        const result = await ai.models.generateContent({
+            model,
+            contents: prompt,
+            config: { responseMimeType: "application/json", responseSchema },
+        });
+
+        const jsonString = result.text?.trim();
+
+        if (!jsonString) {
+            const finishReason = result.candidates?.[0]?.finishReason;
+            const safetyRatings = result.promptFeedback?.safetyRatings;
+            
+            let detailedError = "The AI returned an empty response, which may be due to the input document's content, length, or a temporary API issue.";
+            if (finishReason === 'SAFETY') {
+                detailedError = "The response was blocked due to safety concerns. This can happen if the source material contains sensitive content.";
+                if (safetyRatings && safetyRatings.length > 0) {
+                    detailedError += ` Details: ${safetyRatings.map(r => `${r.category}: ${r.probability}`).join(', ')}`;
+                }
+            } else if (finishReason) {
+                detailedError = `The response was stopped for reason: ${finishReason}.`;
+            }
+            
+            console.error("Gemini API call for concept map structure failed to return content.", { detailedError, fullResponse: result });
+            throw new Error(detailedError);
+        }
+
+        const parsed = JSON.parse(jsonString) as { studyTopics: GeneratedTopicNode[] };
+        return parsed.studyTopics;
+    } catch (error) {
+        console.error("Error processing concept map structure from Gemini:", error);
+        throw error;
+    }
 };
 
-export const generateKnowledgeQA = async (text: string): Promise<Omit<QA, 'studyStatus'>[]> => {
-    const prompt = `From the provided text, create a list of exam-style, fact-based, and conceptual knowledge questions. The quality should be suitable for a university-level exam.
+export const populateTopicWithContent = async (topicLabel: string, context: string): Promise<GeneratedContentPayload> => {
+    const prompt = `Based on the full study material provided, generate study aids ONLY for the topic: "${topicLabel}" and its sub-topics.
 
     **RULES:**
-    1.  **Focus on**: Key concepts, definitions, processes, and factual recall that are central to the subject.
-    2.  **Ensure each question has a direct, accurate answer found within the text.**
-    3.  **STRICTLY EXCLUDE**: Questions about the document's author, course logistics, page numbers, formatting, or any non-academic "fluff". The goal is to create a realistic practice test.
+    1.  **Content per Topic**: For this specific topic block, you MUST generate:
+        a.  **Flashcards**: 1-5 key definitions or core concepts.
+        b.  **Knowledge Q&A**: 1-5 fact-based or conceptual questions.
+        c.  **Scenario Q&A**: At least one scenario-based question applying the information.
+    2.  **Content Focus**: All generated content must be strictly derived from the provided text.
+    3.  **Output Format**: The final output must be a single JSON object matching the schema, containing the three content arrays.
 
-    Text:
+    Full Study Material:
     """
-    ${text}
+    ${context}
     """`;
 
-    const qaSchema = {
+    const baseItemSchema = {
         type: Type.OBJECT,
         properties: {
             question: { type: Type.STRING },
@@ -85,59 +103,44 @@ export const generateKnowledgeQA = async (text: string): Promise<Omit<QA, 'study
         },
         required: ["question", "answer"]
     };
-    
+
     const responseSchema = {
         type: Type.OBJECT,
         properties: {
-            questions: {
-                type: Type.ARRAY,
-                items: qaSchema
-            }
+            flashcards: { type: Type.ARRAY, items: baseItemSchema },
+            knowledgeQA: { type: Type.ARRAY, items: baseItemSchema },
+            scenarioQA: { type: Type.ARRAY, items: baseItemSchema }
         },
-        required: ["questions"]
+        required: ["flashcards", "knowledgeQA", "scenarioQA"]
     };
-    
-    const result = await generateContent<{ questions: { question: string, answer: string }[] }>(prompt, responseSchema);
-    return result.questions.map((qa, index) => ({ ...qa, id: `kq-${Date.now()}-${index}` }));
+
+     try {
+        const result = await ai.models.generateContent({
+            model,
+            contents: prompt,
+            config: { responseMimeType: "application/json", responseSchema },
+        });
+
+        const jsonString = result.text?.trim();
+
+        if (!jsonString) {
+            const finishReason = result.candidates?.[0]?.finishReason;
+            let detailedError = `The AI returned empty content for topic "${topicLabel}".`;
+            if (finishReason) {
+                 detailedError += ` Reason: ${finishReason}.`;
+            }
+
+            console.error(`Gemini API call for topic content "${topicLabel}" failed to return content.`, { detailedError, fullResponse: result });
+            throw new Error(detailedError);
+        }
+
+        return JSON.parse(jsonString) as GeneratedContentPayload;
+    } catch (error) {
+        console.error(`Gemini API call failed for topic content "${topicLabel}":`, error);
+        throw error;
+    }
 };
 
-export const generateScenarioQA = async (text: string): Promise<Omit<QA, 'studyStatus'>[]> => {
-    const prompt = `Analyze the provided content to generate high-quality, application-based scenario questions suitable for an academic or professional exam.
-
-    **RULES:**
-    1.  **Create scenarios that require applying key concepts, principles, or formulas from the text.** The questions should test for deeper understanding, not just recall.
-    2.  **Provide a clear, concise model answer for each scenario.**
-    3.  **The scenarios and answers must be derived strictly from the provided content.** Do not introduce external information.
-    4.  **STRICTLY EXCLUDE**: Any scenarios related to the document itself, its creation, or its author. Focus only on applying the subject matter.
-
-    Content:
-    """
-    ${text}
-    """`;
-
-    const qaSchema = {
-        type: Type.OBJECT,
-        properties: {
-            question: { type: Type.STRING, description: "A scenario-based question." },
-            answer: { type: Type.STRING, description: "A model answer applying concepts from the text." }
-        },
-        required: ["question", "answer"]
-    };
-    
-    const responseSchema = {
-        type: Type.OBJECT,
-        properties: {
-            scenarios: {
-                type: Type.ARRAY,
-                items: qaSchema
-            }
-        },
-        required: ["scenarios"]
-    };
-
-    const result = await generateContent<{ scenarios: { question: string, answer: string }[] }>(prompt, responseSchema);
-    return result.scenarios.map((qa, index) => ({ ...qa, id: `sq-${Date.now()}-${index}` }));
-};
 
 export const generateChatResponse = async (question: string, context: string): Promise<string> => {
     const prompt = `You are an AI study assistant. Your sole purpose is to answer the user's question based strictly on the provided "Study Material". Do not use any external knowledge or make assumptions.

@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
-import { QA as QAType, StudyStatus } from '../types';
+import React, { useState } from 'react';
+import { QA as QAType, StudyStatus, StudyTopicNode, Flashcard } from '../types';
 import { exportQAToCSV, exportQAToPDF } from '../services/exportService';
-import { Download, FileText, Trash2, ChevronDown, CheckCircle2, XCircle, SkipForward, Shuffle, ListOrdered, Flag } from 'lucide-react';
+import { Download, FileText, Trash2, ChevronDown, CheckCircle2, XCircle, SkipForward, Flag, ChevronRight } from 'lucide-react';
 import IconButton from './IconButton';
+import ContentLoader from './ContentLoader';
 
 interface EditableFieldProps {
     value: string;
@@ -10,7 +11,7 @@ interface EditableFieldProps {
     isQuestion?: boolean;
 }
 
-const EditableField: React.FC<EditableFieldProps> = ({ value, onSave, isQuestion = false }) => {
+const EditableField: React.FC<EditableFieldProps> = React.memo(({ value, onSave, isQuestion = false }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [text, setText] = useState(value);
 
@@ -39,7 +40,7 @@ const EditableField: React.FC<EditableFieldProps> = ({ value, onSave, isQuestion
             {value}
         </div>
     );
-};
+});
 
 
 interface QAItemProps {
@@ -55,7 +56,7 @@ const statusColorMap: Record<StudyStatus, string> = {
     skipped: 'border-yellow-500',
 };
 
-const QAItem: React.FC<QAItemProps> = ({ item, onUpdate, onDelete }) => {
+const QAItem: React.FC<QAItemProps> = React.memo(({ item, onUpdate, onDelete }) => {
     const [isAnswerVisible, setIsAnswerVisible] = useState(false);
     const { isFlagged = false } = item;
 
@@ -107,13 +108,15 @@ const QAItem: React.FC<QAItemProps> = ({ item, onUpdate, onDelete }) => {
             </div>
         </div>
     );
-};
+});
 
 interface QASectionProps {
-    knowledgeQA: QAType[];
-    scenarioQA: QAType[];
-    setKnowledgeQA: (qa: QAType[]) => void;
-    setScenarioQA: (qa: QAType[]) => void;
+    studyTopics: StudyTopicNode[] | null;
+    allKnowledgeQA: QAType[];
+    allScenarioQA: QAType[];
+    allItemsByMainTopic: Map<string, { flashcards: Flashcard[], knowledgeQA: QAType[], scenarioQA: QAType[] }>;
+    onUpdate: (item: QAType) => void;
+    onDelete: (id: string) => void;
 }
 
 const TabButton = ({ label, isActive, onClick }: { label: string, isActive: boolean, onClick: () => void }) => (
@@ -129,128 +132,102 @@ const TabButton = ({ label, isActive, onClick }: { label: string, isActive: bool
     </button>
 )
 
-const OrderToggleButton: React.FC<{ order: 'sequential' | 'randomized'; setOrder: (order: 'sequential' | 'randomized') => void; }> = ({ order, setOrder }) => (
-     <div className="flex items-center bg-slate-200 dark:bg-slate-700 rounded-lg p-1">
-        <button
-            onClick={() => setOrder('sequential')}
-            className={`flex items-center px-3 py-1 text-xs font-semibold rounded-md transition-colors ${
-                order === 'sequential' ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow' : 'text-slate-600 dark:text-slate-300'
-            }`}
-        >
-            <ListOrdered className="w-4 h-4 mr-1.5" />
-            Sequential
-        </button>
-        <button
-            onClick={() => setOrder('randomized')}
-            className={`flex items-center px-3 py-1 text-xs font-semibold rounded-md transition-colors ${
-                order === 'randomized' ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow' : 'text-slate-600 dark:text-slate-300'
-            }`}
-        >
-            <Shuffle className="w-4 h-4 mr-1.5" />
-            Randomized
-        </button>
-    </div>
-);
-
-const QAList: React.FC<{
-    items: QAType[], 
-    onUpdate: (item: QAType) => void, 
-    onDelete: (id: string) => void,
-    type: 'knowledge' | 'scenario'
-}> = ({ items, onUpdate, onDelete, type}) => {
-    if (items.length === 0) {
-        return (
-            <div className="text-center py-10 bg-slate-100 dark:bg-slate-800/50 rounded-lg">
-                <h3 className="text-lg font-semibold">No Questions Generated</h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">The AI couldn't create {type} questions from the text.</p>
-            </div>
-        )
-    }
-    return (
-        <div className="space-y-4">
-            {items.map(item => <QAItem key={item.id} item={item} onUpdate={onUpdate} onDelete={onDelete}/>)}
-        </div>
-    )
+interface MainTopicQAProps {
+    topic: StudyTopicNode;
+    knowledgeItems: QAType[];
+    scenarioItems: QAType[];
+    onUpdate: (item: QAType) => void;
+    onDelete: (id: string) => void;
+    type: 'knowledge' | 'scenario';
+    isInitiallyExpanded: boolean;
 }
 
-const QASection: React.FC<QASectionProps> = ({ knowledgeQA, scenarioQA, setKnowledgeQA, setScenarioQA }) => {
-    const [activeTab, setActiveTab] = useState<'knowledge' | 'scenario'>('knowledge');
-    const [cardOrder, setCardOrder] = useState<'sequential' | 'randomized'>('sequential');
-
-    const displayedKnowledgeQA = useMemo(() => {
-        if (cardOrder === 'randomized') {
-            return [...knowledgeQA].sort(() => Math.random() - 0.5);
-        }
-        return knowledgeQA;
-    }, [knowledgeQA, cardOrder]);
-
-    const displayedScenarioQA = useMemo(() => {
-        if (cardOrder === 'randomized') {
-            return [...scenarioQA].sort(() => Math.random() - 0.5);
-        }
-        return scenarioQA;
-    }, [scenarioQA, cardOrder]);
-
-    const updateKnowledgeItem = (updatedItem: QAType) => {
-        setKnowledgeQA(knowledgeQA.map(item => item.id === updatedItem.id ? updatedItem : item));
-    };
-
-    const deleteKnowledgeItem = (itemId: string) => {
-        setKnowledgeQA(knowledgeQA.filter(item => item.id !== itemId));
-    };
+const MainTopicQA: React.FC<MainTopicQAProps> = React.memo(({ topic, knowledgeItems, scenarioItems, onUpdate, onDelete, type, isInitiallyExpanded }) => {
+    const [isExpanded, setIsExpanded] = useState(isInitiallyExpanded);
     
-    const updateScenarioItem = (updatedItem: QAType) => {
-        setScenarioQA(scenarioQA.map(item => item.id === updatedItem.id ? updatedItem : item));
-    };
+    const itemsToShow = type === 'knowledge' ? knowledgeItems : scenarioItems;
+    const shouldShowLoader = !topic.isContentLoaded;
+    const hasContent = itemsToShow.length > 0;
 
-    const deleteScenarioItem = (itemId: string) => {
-        setScenarioQA(scenarioQA.filter(item => item.id !== itemId));
-    };
+    if (!hasContent && topic.isContentLoaded) return null;
+
+     return (
+        <div className="mt-4 border-t border-slate-200 dark:border-slate-700 first:mt-0 first:border-t-0 pt-4 first:pt-0">
+            <div className="flex items-center">
+                 <button onClick={() => setIsExpanded(!isExpanded)} className="flex items-center text-left w-full p-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800">
+                    <ChevronRight className={`w-5 h-5 mr-2 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                    <h3 className="text-lg font-semibold flex-grow">{topic.label} 
+                        {!shouldShowLoader && <span className="text-sm font-normal text-slate-500"> ({itemsToShow.length})</span>}
+                    </h3>
+                </button>
+            </div>
+            {isExpanded && (
+                <div className="pl-4 pt-2">
+                    {shouldShowLoader ? (
+                        <ContentLoader message={`Generating Q&A for ${topic.label}...`} />
+                    ) : (
+                        <div className="space-y-4 my-4">
+                            {itemsToShow.map(item => <QAItem key={item.id} item={item} onUpdate={onUpdate} onDelete={onDelete}/>)}
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+});
+
+const QASection: React.FC<QASectionProps> = ({ studyTopics, allKnowledgeQA, allScenarioQA, allItemsByMainTopic, onUpdate, onDelete }) => {
+    const [activeTab, setActiveTab] = useState<'knowledge' | 'scenario'>('knowledge');
     
     return (
         <div id="qa-section">
             <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
                 <h2 className="text-2xl sm:text-3xl font-bold">Generated Q&A</h2>
-                 <div className="flex items-center space-x-4">
-                    <OrderToggleButton order={cardOrder} setOrder={setCardOrder} />
-                    <div className="flex items-center space-x-2">
-                        <IconButton 
-                            icon={<FileText className="w-4 h-4" />} 
-                            tooltip="Export as CSV" 
-                            onClick={() => exportQAToCSV(knowledgeQA, scenarioQA)} 
-                        />
-                        <IconButton 
-                            icon={<Download className="w-4 h-4" />} 
-                            tooltip="Export as PDF" 
-                            onClick={() => exportQAToPDF(knowledgeQA, scenarioQA)} 
-                        />
-                    </div>
+                 <div className="flex items-center space-x-2">
+                    <IconButton 
+                        icon={<FileText className="w-4 h-4" />} 
+                        tooltip="Export as CSV" 
+                        onClick={() => exportQAToCSV(allKnowledgeQA, allScenarioQA)} 
+                        disabled={allKnowledgeQA.length === 0 && allScenarioQA.length === 0}
+                    />
+                    <IconButton 
+                        icon={<Download className="w-4 h-4" />} 
+                        tooltip="Export as PDF" 
+                        onClick={() => exportQAToPDF(allKnowledgeQA, allScenarioQA)} 
+                        disabled={allKnowledgeQA.length === 0 && allScenarioQA.length === 0}
+                    />
                 </div>
             </div>
 
             <div className="mb-6 border-b border-slate-200 dark:border-slate-700">
                 <nav className="flex -mb-px" aria-label="Tabs">
-                     <TabButton label={`Knowledge Questions (${knowledgeQA.length})`} isActive={activeTab === 'knowledge'} onClick={() => setActiveTab('knowledge')} />
-                     <TabButton label={`Scenario-Based Questions (${scenarioQA.length})`} isActive={activeTab === 'scenario'} onClick={() => setActiveTab('scenario')} />
+                     <TabButton label={`Knowledge Questions (${allKnowledgeQA.length})`} isActive={activeTab === 'knowledge'} onClick={() => setActiveTab('knowledge')} />
+                     <TabButton label={`Scenario-Based Questions (${allScenarioQA.length})`} isActive={activeTab === 'scenario'} onClick={() => setActiveTab('scenario')} />
                 </nav>
             </div>
             
-            <div id="qa-content">
-                {activeTab === 'knowledge' && (
-                    <QAList 
-                        items={displayedKnowledgeQA}
-                        onUpdate={updateKnowledgeItem}
-                        onDelete={deleteKnowledgeItem}
-                        type="knowledge"
-                    />
-                )}
-                 {activeTab === 'scenario' && (
-                    <QAList 
-                        items={displayedScenarioQA}
-                        onUpdate={updateScenarioItem}
-                        onDelete={deleteScenarioItem}
-                        type="scenario"
-                    />
+            <div id="qa-content" className="bg-white dark:bg-slate-800/50 rounded-lg shadow-inner p-4">
+                {(!studyTopics) ? (
+                     <div className="text-center py-10">
+                        <h3 className="text-lg font-semibold">No Questions Generated</h3>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">The AI couldn't create questions from the text.</p>
+                    </div>
+                ) : (
+                    studyTopics.map((topic, index) => {
+                        const topicItems = allItemsByMainTopic.get(topic.id) || { knowledgeQA: [], scenarioQA: [] };
+                        return (
+                            <MainTopicQA 
+                                key={topic.id}
+                                topic={topic}
+                                knowledgeItems={topicItems.knowledgeQA}
+                                scenarioItems={topicItems.scenarioQA}
+                                onUpdate={onUpdate}
+                                onDelete={onDelete}
+                                type={activeTab}
+                                isInitiallyExpanded={index === 0}
+                            />
+                        )
+                    })
                 )}
             </div>
         </div>

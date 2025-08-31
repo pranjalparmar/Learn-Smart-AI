@@ -1,9 +1,11 @@
 import React from 'react';
-import { Layers3, MessageSquareQuote, ListChecks, Bot } from 'lucide-react';
+import { Layers3, MessageSquareQuote, ListChecks, Bot, Network } from 'lucide-react';
+
+type Tab = 'flashcards' | 'qa' | 'progress' | 'chatbot' | 'concept-map';
 
 interface SidebarProps {
-    activeTab: 'flashcards' | 'qa' | 'progress' | 'chatbot';
-    setActiveTab: (tab: 'flashcards' | 'qa' | 'progress' | 'chatbot') => void;
+    activeTab: Tab;
+    setActiveTab: (tab: Tab) => void;
 }
 
 const NavButton = ({ icon, label, isActive, onClick }: { icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void }) => (
@@ -36,6 +38,12 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
                     label="Q&A"
                     isActive={activeTab === 'qa'}
                     onClick={() => setActiveTab('qa')}
+                />
+                <NavButton
+                    icon={<Network className="h-5 w-5" />}
+                    label="Concept Map"
+                    isActive={activeTab === 'concept-map'}
+                    onClick={() => setActiveTab('concept-map')}
                 />
                 <NavButton
                     icon={<ListChecks className="h-5 w-5" />}

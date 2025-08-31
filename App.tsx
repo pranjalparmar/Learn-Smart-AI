@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import { AppState, View, Flashcard, QA } from './types';
+import React, { useState, useCallback, useMemo } from 'react';
+import { AppState, View, Flashcard, QA, StudyTopicNode, GeneratedTopicNode, StudyStatus, GeneratedContentPayload } from './types';
 import Sidebar from './components/Sidebar';
 import FileUpload from './components/FileUpload';
 import Loader from './components/Loader';
@@ -8,30 +8,29 @@ import QASection from './components/QASection';
 import ProgressTracker from './components/ProgressTracker';
 import Chatbot from './components/Chatbot';
 import MiniGame from './components/MiniGame';
+import ConceptMap from './components/ConceptMap';
 import { useSettings } from './contexts/SettingsContext';
 import { extractText } from './services/fileProcessor';
 import { 
-    generateFlashcards, 
-    generateKnowledgeQA, 
-    generateScenarioQA,
+    generateConceptMapStructure,
+    populateTopicWithContent,
 } from './services/geminiService';
 import { BrainCircuit, FileUp, Sun, Moon } from 'lucide-react';
 import IconButton from './components/IconButton';
 
+type ActiveTab = 'flashcards' | 'qa' | 'progress' | 'chatbot' | 'concept-map';
+
 const App: React.FC = () => {
-    // FIX: Destructure theme and setTheme from useSettings to fix undefined variable errors.
     const { theme, setTheme } = useSettings();
     const [appState, setAppState] = useState<AppState>({
         view: View.Upload,
         loadingMessage: '',
         progress: 0,
-        flashcards: [],
-        knowledgeQA: [],
-        scenarioQA: [],
+        studyTopics: null,
         sourceText: '',
         error: null,
     });
-    const [activeTab, setActiveTab] = useState<'flashcards' | 'qa' | 'progress' | 'chatbot'>('flashcards');
+    const [activeTab, setActiveTab] = useState<ActiveTab>('flashcards');
     const [gameSkipped, setGameSkipped] = useState(false);
 
     const resetState = useCallback(() => {
@@ -39,102 +38,126 @@ const App: React.FC = () => {
             view: View.Upload,
             loadingMessage: '',
             progress: 0,
-            flashcards: [],
-            knowledgeQA: [],
-            scenarioQA: [],
+            studyTopics: null,
             sourceText: '',
             error: null,
         });
         setActiveTab('flashcards');
         setGameSkipped(false);
     }, []);
+    
+    // Recursively adds studyStatus, unique IDs, and loading state to the data.
+    const processGeneratedTopics = (nodes: GeneratedTopicNode[]): StudyTopicNode[] => {
+        const now = Date.now();
+        let counter = 0;
+        const traverse = (nodes: GeneratedTopicNode[]): StudyTopicNode[] => {
+             return nodes.map(node => ({
+                ...node,
+                isContentLoaded: false, // Initially, content is not loaded
+                flashcards: (node.flashcards || []).map((fc) => ({ ...fc, id: `fc-${now}-${counter++}`, studyStatus: 'unseen' })),
+                knowledgeQA: (node.knowledgeQA || []).map((qa) => ({ ...qa, id: `kq-${now}-${counter++}`, studyStatus: 'unseen' })),
+                scenarioQA: (node.scenarioQA || []).map((qa) => ({ ...qa, id: `sq-${now}-${counter++}`, studyStatus: 'unseen' })),
+                children: node.children ? traverse(node.children) : undefined,
+            }));
+        };
+        return traverse(nodes);
+    };
+    
+    // Recursively merges new content into the correct node in the state tree
+    const mergeTopicContent = (nodes: StudyTopicNode[], topicId: string, content: GeneratedContentPayload): StudyTopicNode[] => {
+        const now = Date.now();
+        let counter = 0;
+        return nodes.map(node => {
+            if (node.id === topicId) {
+                return {
+                    ...node,
+                    isContentLoaded: true,
+                    flashcards: content.flashcards.map(fc => ({ ...fc, id: `fc-${now}-${counter++}`, studyStatus: 'unseen' })),
+                    knowledgeQA: content.knowledgeQA.map(qa => ({ ...qa, id: `kq-${now}-${counter++}`, studyStatus: 'unseen' })),
+                    scenarioQA: content.scenarioQA.map(qa => ({ ...qa, id: `sq-${now}-${counter++}`, studyStatus: 'unseen' })),
+                };
+            }
+            if (node.children) {
+                return { ...node, children: mergeTopicContent(node.children, topicId, content) };
+            }
+            return node;
+        });
+    };
 
     const handleFileUpload = async (files: FileList) => {
         if (files.length === 0) return;
         
+        const timings = { total: 0, extraction: 0, structureGeneration: 0 };
+        const totalStartTime = performance.now();
+
         resetState();
         setAppState(prev => ({ ...prev, view: View.Loading, loadingMessage: 'Preparing to upload...', progress: 0, error: null }));
         
         try {
-            let combinedText = '';
-            const filesArray = Array.from(files);
-            
-            for (let i = 0; i < filesArray.length; i++) {
-                const file = filesArray[i];
-                const progress = 5 + ((i + 1) / filesArray.length) * 20;
+            // 1. Text Extraction
+            setAppState(prev => ({ ...prev, loadingMessage: 'Extracting text from file(s)...', progress: 5 }));
+            const extractionStartTime = performance.now();
+            const combinedText = await Array.from(files).reduce(async (accPromise, file, i, arr) => {
+                const acc = await accPromise;
+                const progress = 5 + ((i + 1) / arr.length) * 15;
                 setAppState(prev => ({ ...prev, loadingMessage: `Extracting text from ${file.name}...`, progress}));
                 const text = await extractText(file);
-                combinedText += text + '\n\n';
-            }
+                return acc + text + '\n\n';
+            }, Promise.resolve(''));
+            timings.extraction = performance.now() - extractionStartTime;
 
-            if (!combinedText.trim()) {
-                throw new Error("No text could be extracted from the file(s). Please check the content.");
-            }
+            if (!combinedText.trim()) throw new Error("No text could be extracted from the file(s).");
+            setAppState(prev => ({ ...prev, sourceText: combinedText, progress: 20 }));
+
+            // 2. Generate Concept Map Structure
+            setAppState(prev => ({ ...prev, loadingMessage: 'Phase 1: Analyzing document structure...', progress: 25 }));
+            const structureStartTime = performance.now();
+            const generatedStructure = await generateConceptMapStructure(combinedText);
+            timings.structureGeneration = performance.now() - structureStartTime;
             
-            setAppState(prev => ({ 
-                ...prev, 
-                sourceText: combinedText,
-                loadingMessage: 'Generating study materials... This may take a moment.', 
-                progress: 25,
+            if (!generatedStructure || generatedStructure.length === 0) throw new Error("The AI failed to generate a study structure.");
+            
+            const studyTopicsWithStructure = processGeneratedTopics(generatedStructure);
+
+            // 3. Set initial structure and switch view
+            setAppState(prev => ({
+                ...prev,
+                studyTopics: studyTopicsWithStructure,
+                view: View.Results, // Switch to results view immediately
+                loadingMessage: 'Phase 2: Generating content...',
+                progress: 50
             }));
 
-            const promises: Promise<any>[] = [];
+            // 4. In parallel, populate content for each main topic
+            const contentPromises = studyTopicsWithStructure.map(topic =>
+                populateTopicWithContent(topic.label, combinedText)
+                    .then(content => {
+                        setAppState(prev => ({
+                            ...prev,
+                            studyTopics: mergeTopicContent(prev.studyTopics!, topic.id, content),
+                        }));
+                    })
+                    .catch(error => {
+                        console.error(`Failed to generate content for topic "${topic.label}":`, error);
+                        // Mark as loaded to remove spinner, even on error
+                         setAppState(prev => ({
+                            ...prev,
+                            studyTopics: mergeTopicContent(prev.studyTopics!, topic.id, { flashcards: [], knowledgeQA: [], scenarioQA: [] }),
+                        }));
+                    })
+            );
 
-            const flashcardPromise = generateFlashcards(combinedText)
-                .then(flashcards => {
-                    setAppState(prev => ({
-                        ...prev,
-                        flashcards: flashcards.map(f => ({ ...f, studyStatus: 'unseen' })),
-                        progress: prev.progress + 25,
-                    }));
-                })
-                .catch(err => {
-                    console.error("Failed to generate flashcards:", err);
-                    setAppState(prev => ({...prev, progress: prev.progress + 25}));
-                });
-            promises.push(flashcardPromise);
+            await Promise.all(contentPromises); // Wait for all content to be fetched
+
+            setAppState(prev => ({ ...prev, progress: 100, loadingMessage: 'All content generated!' }));
             
-            const knowledgeQAPromise = generateKnowledgeQA(combinedText)
-                .then(knowledgeQA => {
-                    setAppState(prev => ({
-                        ...prev,
-                        knowledgeQA: knowledgeQA.map(q => ({...q, studyStatus: 'unseen' })),
-                        progress: prev.progress + 25,
-                    }));
-                })
-                .catch(err => {
-                    console.error("Failed to generate knowledge QA:", err);
-                    setAppState(prev => ({...prev, progress: prev.progress + 25}));
-                });
-            promises.push(knowledgeQAPromise);
-            
-            const scenarioQAPromise = generateScenarioQA(combinedText)
-                .then(scenarioQA => {
-                     setAppState(prev => ({
-                        ...prev,
-                        scenarioQA: scenarioQA.map(q => ({...q, studyStatus: 'unseen' })),
-                        progress: prev.progress + 25,
-                    }));
-                })
-                .catch(err => {
-                    console.error("Failed to generate scenario QA:", err);
-                    setAppState(prev => ({...prev, progress: prev.progress + 25}));
-                });
-            promises.push(scenarioQAPromise);
-
-            await Promise.allSettled(promises);
-
-            setAppState(prev => {
-                if (prev.flashcards.length === 0 && prev.knowledgeQA.length === 0 && prev.scenarioQA.length === 0) {
-                    return { 
-                        ...prev, 
-                        view: View.Error, 
-                        error: "Failed to generate any study materials. Please check the file content or try again.",
-                        progress: 0 
-                    };
-                }
-                return { ...prev, view: View.Results, progress: 100, loadingMessage: 'Done!' };
-            });
+            timings.total = performance.now() - totalStartTime;
+            console.log("--- IntelliStudy AI Performance Timings ---");
+            console.log(`Text Extraction: ${timings.extraction.toFixed(2)} ms`);
+            console.log(`Structure Generation: ${timings.structureGeneration.toFixed(2)} ms`);
+            console.log("-------------------------------------------");
+            console.log(`Total Time (including parallel content fetch): ${timings.total.toFixed(2)} ms`);
+            console.log("-------------------------------------------");
 
         } catch (error) {
             console.error(error);
@@ -142,7 +165,142 @@ const App: React.FC = () => {
             setAppState(prev => ({ ...prev, view: View.Error, error: `Failed to process file. ${errorMessage}`, progress: 0 }));
         }
     };
+
+    const updateStudyItem = useCallback((itemToUpdate: Flashcard | QA) => {
+        const isFlashcard = itemToUpdate.id.startsWith('fc-');
+        const isKnowledgeQA = itemToUpdate.id.startsWith('kq-');
+        
+        const updateInTree = (nodes: StudyTopicNode[]): StudyTopicNode[] => {
+            return nodes.map(node => {
+                if (
+                    (isFlashcard && !node.flashcards.some(fc => fc.id === itemToUpdate.id)) &&
+                    (isKnowledgeQA && !node.knowledgeQA.some(qa => qa.id === itemToUpdate.id)) &&
+                    (!isFlashcard && !isKnowledgeQA && !node.scenarioQA.some(qa => qa.id === itemToUpdate.id)) &&
+                    !node.children
+                ) {
+                    return node;
+                }
+                
+                return {
+                    ...node,
+                    flashcards: isFlashcard 
+                        ? node.flashcards.map(fc => fc.id === itemToUpdate.id ? (itemToUpdate as Flashcard) : fc)
+                        : node.flashcards,
+                    knowledgeQA: isKnowledgeQA 
+                        ? node.knowledgeQA.map(qa => qa.id === itemToUpdate.id ? (itemToUpdate as QA) : qa)
+                        : node.knowledgeQA,
+                    scenarioQA: (!isFlashcard && !isKnowledgeQA)
+                        ? node.scenarioQA.map(qa => qa.id === itemToUpdate.id ? (itemToUpdate as QA) : qa)
+                        : node.scenarioQA,
+                    children: node.children ? updateInTree(node.children) : undefined,
+                };
+            });
+        };
+
+        setAppState(prev => {
+            if (!prev.studyTopics) return prev;
+            return {
+                ...prev,
+                studyTopics: updateInTree(prev.studyTopics),
+            };
+        });
+    }, []);
+
+    const deleteStudyItem = useCallback((itemId: string) => {
+        const isFlashcard = itemId.startsWith('fc-');
+        const isKnowledgeQA = itemId.startsWith('kq-');
+
+        const deleteInTree = (nodes: StudyTopicNode[]): StudyTopicNode[] => {
+            return nodes.map(node => ({
+                ...node,
+                flashcards: isFlashcard ? node.flashcards.filter(fc => fc.id !== itemId) : node.flashcards,
+                knowledgeQA: isKnowledgeQA ? node.knowledgeQA.filter(qa => qa.id !== itemId) : node.knowledgeQA,
+                scenarioQA: (!isFlashcard && !isKnowledgeQA) ? node.scenarioQA.filter(qa => qa.id !== itemId) : node.scenarioQA,
+                children: node.children ? deleteInTree(node.children) : undefined,
+            }));
+        };
+
+        setAppState(prev => {
+            if (!prev.studyTopics) return prev;
+            return {
+                ...prev,
+                studyTopics: deleteInTree(prev.studyTopics),
+            };
+        });
+    }, []);
+
+    const allFlashcards = useMemo(() => {
+        if (!appState.studyTopics) return [];
+        const getAll = (nodes: StudyTopicNode[]): Flashcard[] => {
+            return nodes.reduce((acc, node) => {
+                acc.push(...node.flashcards);
+                if (node.children) {
+                    acc.push(...getAll(node.children));
+                }
+                return acc;
+            }, [] as Flashcard[]);
+        };
+        return getAll(appState.studyTopics);
+    }, [appState.studyTopics]);
     
+    const allKnowledgeQA = useMemo(() => {
+         if (!appState.studyTopics) return [];
+        const getAll = (nodes: StudyTopicNode[]): QA[] => {
+            return nodes.reduce((acc, node) => {
+                acc.push(...node.knowledgeQA);
+                if (node.children) {
+                    acc.push(...getAll(node.children));
+                }
+                return acc;
+            }, [] as QA[]);
+        };
+        return getAll(appState.studyTopics);
+    }, [appState.studyTopics]);
+
+    const allScenarioQA = useMemo(() => {
+        if (!appState.studyTopics) return [];
+        const getAll = (nodes: StudyTopicNode[]): QA[] => {
+            return nodes.reduce((acc, node) => {
+                acc.push(...node.scenarioQA);
+                if (node.children) {
+                    acc.push(...getAll(node.children));
+                }
+                return acc;
+            }, [] as QA[]);
+        };
+        return getAll(appState.studyTopics);
+    }, [appState.studyTopics]);
+
+    const allItemsByMainTopic = useMemo(() => {
+        if (!appState.studyTopics) {
+            return new Map<string, { flashcards: Flashcard[], knowledgeQA: QA[], scenarioQA: QA[] }>();
+        }
+
+        const itemMap = new Map<string, { flashcards: Flashcard[], knowledgeQA: QA[], scenarioQA: QA[] }>();
+
+        const collectRecursively = (node: StudyTopicNode): { flashcards: Flashcard[], knowledgeQA: QA[], scenarioQA: QA[] } => {
+            let flashcards = [...node.flashcards];
+            let knowledgeQA = [...node.knowledgeQA];
+            let scenarioQA = [...node.scenarioQA];
+
+            if (node.children) {
+                for (const child of node.children) {
+                    const childItems = collectRecursively(child);
+                    flashcards.push(...childItems.flashcards);
+                    knowledgeQA.push(...childItems.knowledgeQA);
+                    scenarioQA.push(...childItems.scenarioQA);
+                }
+            }
+            return { flashcards, knowledgeQA, scenarioQA };
+        };
+
+        for (const mainTopic of appState.studyTopics) {
+            itemMap.set(mainTopic.id, collectRecursively(mainTopic));
+        }
+
+        return itemMap;
+    }, [appState.studyTopics]);
+        
     const renderContent = () => {
         switch (appState.view) {
             case View.Loading:
@@ -157,12 +315,13 @@ const App: React.FC = () => {
                     />
                 );
             case View.Results:
-                return (
+                 return (
                     <div className="p-4 sm:p-6 lg:p-8">
-                       {activeTab === 'flashcards' && <FlashcardList flashcards={appState.flashcards} setFlashcards={(newFlashcards) => setAppState(p => ({...p, flashcards: newFlashcards}))} />}
-                       {activeTab === 'qa' && <QASection knowledgeQA={appState.knowledgeQA} scenarioQA={appState.scenarioQA} setKnowledgeQA={(newQA) => setAppState(p => ({...p, knowledgeQA: newQA}))} setScenarioQA={(newQA) => setAppState(p => ({...p, scenarioQA: newQA}))} />}
-                       {activeTab === 'progress' && <ProgressTracker flashcards={appState.flashcards} knowledgeQA={appState.knowledgeQA} scenarioQA={appState.scenarioQA} />}
+                       {activeTab === 'flashcards' && <FlashcardList studyTopics={appState.studyTopics} allFlashcards={allFlashcards} allItemsByMainTopic={allItemsByMainTopic} onUpdate={updateStudyItem} onDelete={deleteStudyItem} />}
+                       {activeTab === 'qa' && <QASection studyTopics={appState.studyTopics} allKnowledgeQA={allKnowledgeQA} allScenarioQA={allScenarioQA} allItemsByMainTopic={allItemsByMainTopic} onUpdate={updateStudyItem} onDelete={deleteStudyItem} />}
+                       {activeTab === 'progress' && <ProgressTracker studyTopics={appState.studyTopics} />}
                        {activeTab === 'chatbot' && <Chatbot sourceText={appState.sourceText} />}
+                       {activeTab === 'concept-map' && <ConceptMap conceptMapData={appState.studyTopics} />}
                     </div>
                 );
             case View.Error:

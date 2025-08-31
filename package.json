@@ -15,7 +15,9 @@
     "lucide-react": "^0.542.0",
     "jspdf": "^3.0.2",
     "pdfjs-dist": "^5.4.54",
-    "html2canvas": "^1.4.1"
+    "html2canvas": "^1.4.1",
+    "mammoth-browser": "^1.8.0",
+    "pptx2js": "^0.3.3"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

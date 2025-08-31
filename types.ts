@@ -9,28 +9,52 @@ export interface Flashcard {
 }
 
 export interface QA {
-    id: string;
+    id:string;
     question: string;
     answer: string;
     studyStatus: StudyStatus;
     isFlagged?: boolean;
 }
 
-// FIX: Add missing Illustration type for VisualAids component.
 export interface Illustration {
     id: string;
     title: string;
     imageBase64: string;
 }
 
-// FIX: Add missing types for ConceptMap component.
 export interface ConceptNode {
-    id: string;
+    id:string;
     label: string;
     children?: ConceptNode[];
 }
 
 export type ConceptMapData = ConceptNode[];
+
+
+// The raw response from the Gemini API
+export interface GeneratedTopicNode extends Omit<ConceptNode, 'children'> {
+    flashcards?: Omit<Flashcard, 'id' | 'studyStatus' | 'isFlagged'>[];
+    knowledgeQA?: Omit<QA, 'id' | 'studyStatus' | 'isFlagged'>[];
+    scenarioQA?: Omit<QA, 'id' | 'studyStatus' | 'isFlagged'>[];
+    children?: GeneratedTopicNode[];
+}
+
+// Payload for content generation for a single topic
+export interface GeneratedContentPayload {
+    flashcards: Omit<Flashcard, 'id' | 'studyStatus' | 'isFlagged'>[];
+    knowledgeQA: Omit<QA, 'id' | 'studyStatus' | 'isFlagged'>[];
+    scenarioQA: Omit<QA, 'id' | 'studyStatus' | 'isFlagged'>[];
+}
+
+
+// The data structure used within the application's state, with statuses and unique IDs
+export interface StudyTopicNode extends Omit<ConceptNode, 'children'> {
+    isContentLoaded: boolean;
+    flashcards: Flashcard[];
+    knowledgeQA: QA[];
+    scenarioQA: QA[];
+    children?: StudyTopicNode[];
+}
 
 export enum View {
     Upload,
@@ -43,9 +67,7 @@ export interface AppState {
     view: View;
     loadingMessage: string;
     progress: number;
-    flashcards: Flashcard[];
-    knowledgeQA: QA[];
-    scenarioQA: QA[];
+    studyTopics: StudyTopicNode[] | null;
     sourceText: string;
     error: string | null;
 }
@@ -57,17 +79,14 @@ export interface ChatMessage {
     isError?: boolean;
 }
 
-// FIX: Add missing PracticeSet type for PracticeDashboard component.
 export interface PracticeSet {
     id: string;
     name: string;
     itemIds: string[];
 }
 
-
 export type Theme = 'light' | 'dark';
 
-// FIX: Add missing types for settings feature
 export type CardOrder = 'sequential' | 'randomized';
 export type FontSize = 'sm' | 'md' | 'lg';
 
@@ -75,4 +94,20 @@ export interface Settings {
     theme: Theme;
     cardOrder: CardOrder;
     fontSize: FontSize;
+}
+
+// FIX: Add ExamResult and related types for the exam feature.
+export interface ExamAnswer {
+    itemId: string;
+    question: string;
+    answer: string;
+    userAnswer: StudyStatus;
+}
+
+export interface ExamResult {
+    totalQuestions: number;
+    score: number;
+    timeTaken: number; // in seconds
+    topics: string[];
+    answers: ExamAnswer[];
 }

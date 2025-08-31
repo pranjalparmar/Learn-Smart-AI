@@ -8,7 +8,7 @@ interface EditableFieldProps {
     onSave: (newValue: string) => void;
 }
 
-const EditableField: React.FC<EditableFieldProps> = ({ value, onSave }) => {
+const EditableField: React.FC<EditableFieldProps> = React.memo(({ value, onSave }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [text, setText] = useState(value);
 
@@ -34,7 +34,7 @@ const EditableField: React.FC<EditableFieldProps> = ({ value, onSave }) => {
             {value}
         </p>
     );
-};
+});
 
 
 interface FlashcardProps {
@@ -50,7 +50,7 @@ const statusColorMap: Record<StudyStatus, string> = {
     skipped: 'border-yellow-500',
 };
 
-const Flashcard: React.FC<FlashcardProps> = ({ card, onUpdate, onDelete }) => {
+const Flashcard: React.FC<FlashcardProps> = React.memo(({ card, onUpdate, onDelete }) => {
     const [isAnswerVisible, setIsAnswerVisible] = useState(false);
     const { isFlagged = false } = card;
 
@@ -103,6 +103,6 @@ const Flashcard: React.FC<FlashcardProps> = ({ card, onUpdate, onDelete }) => {
             </div>
         </div>
     );
-};
+});
 
 export default Flashcard;
