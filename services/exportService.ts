@@ -184,7 +184,7 @@ export const exportFlashcardsToPDF = (flashcards: Flashcard[]) => {
     // --- Title ---
     doc.setFont(FONT, 'bold');
     doc.setFontSize(FONT_SIZES.TITLE);
-    doc.text('IntelliStudy AI - Flashcards', pageWidth / 2, y, { align: 'center' });
+    doc.text('Learn Smart AI - Flashcards', pageWidth / 2, y, { align: 'center' });
     y += 15;
 
     flashcards.forEach((card) => {
@@ -195,7 +195,7 @@ export const exportFlashcardsToPDF = (flashcards: Flashcard[]) => {
         });
     });
 
-    doc.save('IntelliStudy-Flashcards.pdf');
+    doc.save('LearnSmart-Flashcards.pdf');
 };
 
 
@@ -208,7 +208,7 @@ export const exportQAToPDF = (knowledgeQA: QA[], scenarioQA: QA[]) => {
     // --- Title ---
     doc.setFont(FONT, 'bold');
     doc.setFontSize(FONT_SIZES.TITLE);
-    doc.text('IntelliStudy AI - Q&A', pageWidth / 2, y, { align: 'center' });
+    doc.text('Learn Smart AI - Q&A', pageWidth / 2, y, { align: 'center' });
     y += 15;
 
     // Helper to render a list of Q&A items under a title
@@ -243,7 +243,7 @@ export const exportQAToPDF = (knowledgeQA: QA[], scenarioQA: QA[]) => {
     
     renderQAList('Scenario-Based Questions', scenarioQA);
 
-    doc.save('IntelliStudy-QA.pdf');
+    doc.save('LearnSmart-QA.pdf');
 };
 
 
@@ -279,7 +279,7 @@ export const exportFlashcardsToCSV = (flashcards: Flashcard[]) => {
     ]);
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    triggerDownload(url, 'IntelliStudy-Flashcards.csv');
+    triggerDownload(url, 'LearnSmart-Flashcards.csv');
 };
 
 export const exportQAToCSV = (knowledgeQA: QA[], scenarioQA: QA[]) => {
@@ -294,7 +294,7 @@ export const exportQAToCSV = (knowledgeQA: QA[], scenarioQA: QA[]) => {
     ]);
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    triggerDownload(url, 'IntelliStudy-QA.csv');
+    triggerDownload(url, 'LearnSmart-QA.csv');
 };
 
 export const exportProgressToCSV = (strongTopics: StudyItem[], weakTopics: StudyItem[]) => {
@@ -310,5 +310,5 @@ export const exportProgressToCSV = (strongTopics: StudyItem[], weakTopics: Study
     ]);
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;'});
     const url = URL.createObjectURL(blob);
-    triggerDownload(url, 'IntelliStudy-Progress.csv');
+    triggerDownload(url, 'LearnSmart-Progress.csv');
 }

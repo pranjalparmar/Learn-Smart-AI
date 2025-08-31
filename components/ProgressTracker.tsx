@@ -138,7 +138,7 @@ const ProgressTracker: React.FC<ProgressTrackerProps> = ({ studyTopics }) => {
                 <h2 className="text-2xl sm:text-3xl font-bold">Progress Tracker</h2>
                 <div className="flex items-center space-x-2">
                     <IconButton icon={<FileText className="w-4 h-4" />} tooltip="Export as CSV" onClick={() => exportProgressToCSV([], [])} />
-                    <IconButton icon={<Download className="w-4 h-4" />} tooltip="Export as PDF" onClick={() => exportToPDF('progress-section', 'IntelliStudy-Progress')} />
+                    <IconButton icon={<Download className="w-4 h-4" />} tooltip="Export as PDF" onClick={() => exportToPDF('progress-section', 'LearnSmart-Progress')} />
                 </div>
             </div>
 

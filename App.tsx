@@ -154,7 +154,7 @@ const App: React.FC = () => {
             setAppState(prev => ({ ...prev, progress: 100, loadingMessage: 'All content generated!' }));
             
             timings.total = performance.now() - totalStartTime;
-            console.log("--- IntelliStudy AI Performance Timings ---");
+            console.log("--- Learn Smart AI Performance Timings ---");
             console.log(`Text Extraction: ${timings.extraction.toFixed(2)} ms`);
             console.log(`Structure Generation: ${timings.structureGeneration.toFixed(2)} ms`);
             console.log("-------------------------------------------");
@@ -382,7 +382,7 @@ const App: React.FC = () => {
                 <div className="flex items-center space-x-3">
                     <BrainCircuit className="h-8 w-8 text-blue-600" />
                     <div>
-                        <h1 className="text-xl font-bold text-slate-900 dark:text-white">IntelliStudy AI</h1>
+                        <h1 className="text-xl font-bold text-slate-900 dark:text-white">Learn Smart AI</h1>
                         <p className="text-xs text-slate-500 dark:text-slate-400">Turn Your Notes Into Knowledge—Instantly.</p>
                     </div>
                 </div>
