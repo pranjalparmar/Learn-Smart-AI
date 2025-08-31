@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { AppState, View, Flashcard, QA, StudyTopicNode, GeneratedTopicNode, StudyStatus, GeneratedContentPayload } from './types';
+import { AppState, View, Flashcard, QA, StudyTopicNode, GeneratedTopicNode, StudyStatus, GeneratedContentPayload, ConceptNode } from './types';
 import Sidebar from './components/Sidebar';
 import FileUpload from './components/FileUpload';
 import Loader from './components/Loader';
@@ -30,8 +30,9 @@ const App: React.FC = () => {
         sourceText: '',
         error: null,
     });
-    const [activeTab, setActiveTab] = useState<ActiveTab>('flashcards');
+    const [activeTab, setActiveTab] = useState<ActiveTab>('concept-map');
     const [gameSkipped, setGameSkipped] = useState(false);
+    const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
 
     const resetState = useCallback(() => {
         setAppState({
@@ -42,8 +43,9 @@ const App: React.FC = () => {
             sourceText: '',
             error: null,
         });
-        setActiveTab('flashcards');
+        setActiveTab('concept-map');
         setGameSkipped(false);
+        setSelectedTopicId(null);
     }, []);
     
     // Recursively adds studyStatus, unique IDs, and loading state to the data.
@@ -300,6 +302,40 @@ const App: React.FC = () => {
 
         return itemMap;
     }, [appState.studyTopics]);
+
+    const findMainTopicId = (nodes: StudyTopicNode[], childId: string): string | null => {
+        for (const mainTopic of nodes) {
+            if (mainTopic.id === childId) {
+                return mainTopic.id;
+            }
+            
+            const searchInChildren = (currentNode: StudyTopicNode): boolean => {
+                if (currentNode.id === childId) {
+                    return true;
+                }
+                if (currentNode.children) {
+                    return currentNode.children.some(child => searchInChildren(child));
+                }
+                return false;
+            };
+
+            if (searchInChildren(mainTopic)) {
+                return mainTopic.id;
+            }
+        }
+        return null;
+    };
+    
+    const handleConceptMapNodeClick = useCallback((node: ConceptNode) => {
+        if (!appState.studyTopics) return;
+        
+        const mainTopicId = findMainTopicId(appState.studyTopics, node.id);
+        
+        if (mainTopicId) {
+            setSelectedTopicId(mainTopicId);
+            setActiveTab('flashcards');
+        }
+    }, [appState.studyTopics]);
         
     const renderContent = () => {
         switch (appState.view) {
@@ -317,11 +353,11 @@ const App: React.FC = () => {
             case View.Results:
                  return (
                     <div className="p-4 sm:p-6 lg:p-8">
-                       {activeTab === 'flashcards' && <FlashcardList studyTopics={appState.studyTopics} allFlashcards={allFlashcards} allItemsByMainTopic={allItemsByMainTopic} onUpdate={updateStudyItem} onDelete={deleteStudyItem} />}
+                       {activeTab === 'flashcards' && <FlashcardList studyTopics={appState.studyTopics} allFlashcards={allFlashcards} allItemsByMainTopic={allItemsByMainTopic} onUpdate={updateStudyItem} onDelete={deleteStudyItem} selectedTopicId={selectedTopicId} onSelectedTopicHandled={() => setSelectedTopicId(null)} />}
                        {activeTab === 'qa' && <QASection studyTopics={appState.studyTopics} allKnowledgeQA={allKnowledgeQA} allScenarioQA={allScenarioQA} allItemsByMainTopic={allItemsByMainTopic} onUpdate={updateStudyItem} onDelete={deleteStudyItem} />}
                        {activeTab === 'progress' && <ProgressTracker studyTopics={appState.studyTopics} />}
                        {activeTab === 'chatbot' && <Chatbot sourceText={appState.sourceText} />}
-                       {activeTab === 'concept-map' && <ConceptMap conceptMapData={appState.studyTopics} />}
+                       {activeTab === 'concept-map' && <ConceptMap conceptMapData={appState.studyTopics} onNodeClick={handleConceptMapNodeClick} />}
                     </div>
                 );
             case View.Error:

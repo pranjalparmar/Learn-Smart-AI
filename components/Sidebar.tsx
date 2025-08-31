@@ -28,6 +28,12 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
         <aside className="w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 p-4 flex-shrink-0 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto">
             <nav className="space-y-2">
                 <NavButton
+                    icon={<Network className="h-5 w-5" />}
+                    label="Concept Map"
+                    isActive={activeTab === 'concept-map'}
+                    onClick={() => setActiveTab('concept-map')}
+                />
+                <NavButton
                     icon={<Layers3 className="h-5 w-5" />}
                     label="Flashcards"
                     isActive={activeTab === 'flashcards'}
@@ -39,23 +45,17 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
                     isActive={activeTab === 'qa'}
                     onClick={() => setActiveTab('qa')}
                 />
-                <NavButton
-                    icon={<Network className="h-5 w-5" />}
-                    label="Concept Map"
-                    isActive={activeTab === 'concept-map'}
-                    onClick={() => setActiveTab('concept-map')}
-                />
-                <NavButton
-                    icon={<ListChecks className="h-5 w-5" />}
-                    label="Progress"
-                    isActive={activeTab === 'progress'}
-                    onClick={() => setActiveTab('progress')}
-                />
                  <NavButton
                     icon={<Bot className="h-5 w-5" />}
                     label="Ask Anything"
                     isActive={activeTab === 'chatbot'}
                     onClick={() => setActiveTab('chatbot')}
+                />
+                <NavButton
+                    icon={<ListChecks className="h-5 w-5" />}
+                    label="Progress Tracker"
+                    isActive={activeTab === 'progress'}
+                    onClick={() => setActiveTab('progress')}
                 />
             </nav>
         </aside>

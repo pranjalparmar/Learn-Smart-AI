@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Flashcard as FlashcardType, StudyTopicNode, QA } from '../types';
 import { exportFlashcardsToCSV, exportFlashcardsToPDF } from '../services/exportService';
 import { Download, FileText, ChevronRight } from 'lucide-react';
@@ -18,6 +18,10 @@ const MainTopicFlashcards: React.FC<MainTopicFlashcardsProps> = React.memo(({ to
     const [isExpanded, setIsExpanded] = useState(isInitiallyExpanded);
     const shouldShowLoader = !topic.isContentLoaded;
     const hasFlashcards = flashcards.length > 0;
+    
+    useEffect(() => {
+        setIsExpanded(isInitiallyExpanded);
+    }, [isInitiallyExpanded]);
 
     if (!hasFlashcards && topic.isContentLoaded) {
         return null;
@@ -56,10 +60,30 @@ interface FlashcardListProps {
     allItemsByMainTopic: Map<string, { flashcards: FlashcardType[], knowledgeQA: QA[], scenarioQA: QA[] }>;
     onUpdate: (card: FlashcardType) => void;
     onDelete: (cardId: string) => void;
+    selectedTopicId: string | null;
+    onSelectedTopicHandled: () => void;
 }
 
-const FlashcardList: React.FC<FlashcardListProps> = ({ studyTopics, allFlashcards, allItemsByMainTopic, onUpdate, onDelete }) => {
-    
+const FlashcardList: React.FC<FlashcardListProps> = ({ studyTopics, allFlashcards, allItemsByMainTopic, onUpdate, onDelete, selectedTopicId, onSelectedTopicHandled }) => {
+    const topicRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+    useEffect(() => {
+        if (selectedTopicId && topicRefs.current[selectedTopicId]) {
+            const element = topicRefs.current[selectedTopicId];
+            
+            element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            element?.classList.add('bg-blue-100', 'dark:bg-blue-900/50', 'transition-colors', 'duration-300', 'p-2', 'rounded-lg');
+            
+            const timeoutId = setTimeout(() => {
+                element?.classList.remove('bg-blue-100', 'dark:bg-blue-900/50', 'p-2', 'rounded-lg');
+                onSelectedTopicHandled();
+            }, 2000);
+
+            return () => clearTimeout(timeoutId);
+        }
+    }, [selectedTopicId, onSelectedTopicHandled]);
+
     return (
         <div id="flashcard-section">
             <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
@@ -89,15 +113,18 @@ const FlashcardList: React.FC<FlashcardListProps> = ({ studyTopics, allFlashcard
                 <div className="bg-white dark:bg-slate-800/50 rounded-lg shadow-inner p-4">
                     {studyTopics.map((topic, index) => {
                         const topicFlashcards = allItemsByMainTopic.get(topic.id)?.flashcards || [];
+                        const isInitiallyExpanded = selectedTopicId ? topic.id === selectedTopicId : index === 0;
+                        
                         return (
-                           <MainTopicFlashcards 
-                                key={topic.id}
-                                topic={topic}
-                                flashcards={topicFlashcards}
-                                onUpdate={onUpdate}
-                                onDelete={onDelete}
-                                isInitiallyExpanded={index === 0}
-                           />
+                           <div key={topic.id} ref={el => { if (el) topicRefs.current[topic.id] = el; }}>
+                               <MainTopicFlashcards 
+                                   topic={topic}
+                                   flashcards={topicFlashcards}
+                                   onUpdate={onUpdate}
+                                   onDelete={onDelete}
+                                   isInitiallyExpanded={isInitiallyExpanded}
+                               />
+                           </div>
                         )
                     })}
                 </div>

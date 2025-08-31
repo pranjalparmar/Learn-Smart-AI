@@ -1,152 +1,96 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { ConceptNode, ConceptMapData } from '../types';
-import { ChevronRight, ChevronDown, Pencil, Trash2, Check, X } from 'lucide-react';
-import IconButton from './IconButton';
+import { ChevronRight, ChevronDown } from 'lucide-react';
 
-// Recursive helper to update a node's label immutably
-const updateNodeLabelRecursively = (nodes: ConceptNode[], nodeId: string, newLabel: string): ConceptNode[] => {
-    return nodes.map(node => {
-        if (node.id === nodeId) {
-            return { ...node, label: newLabel };
-        }
-        if (node.children && node.children.length > 0) {
-            return { ...node, children: updateNodeLabelRecursively(node.children, nodeId, newLabel) };
-        }
-        return node;
-    });
-};
-
-// Recursive helper to delete a node immutably
-const deleteNodeRecursively = (nodes: ConceptNode[], nodeId: string): ConceptNode[] => {
-    return nodes
-        .filter(node => node.id !== nodeId)
-        .map(node => {
-            if (node.children && node.children.length > 0) {
-                return { ...node, children: deleteNodeRecursively(node.children, nodeId) };
-            }
-            return node;
-        });
-};
-
-// Recursive rendering component for each item in the outline
-const OutlineNode: React.FC<{
+const ConceptMapNode: React.FC<{
     node: ConceptNode;
     level: number;
-    isExpanded: boolean;
-    onToggle: (nodeId: string) => void;
-    onUpdate: (nodeId: string, newLabel: string) => void;
-    onDelete: (nodeId: string) => void;
-    renderChildren: (nodes: ConceptNode[], level: number) => React.ReactNode;
-}> = ({ node, level, isExpanded, onToggle, onUpdate, onDelete, renderChildren }) => {
-    const [isEditing, setIsEditing] = useState(false);
-    const [editText, setEditText] = useState(node.label);
-
-    const handleSave = () => {
-        if (editText.trim()) {
-            onUpdate(node.id, editText.trim());
-        }
-        setIsEditing(false);
-    };
-
-    const handleCancel = () => {
-        setEditText(node.label);
-        setIsEditing(false);
-    };
-
+    onNodeClick: (node: ConceptNode) => void;
+}> = ({ node, level, onNodeClick }) => {
+    const [isExpanded, setIsExpanded] = useState(true);
     const hasChildren = node.children && node.children.length > 0;
 
-    return (
-        <div style={{ paddingLeft: `${level * 1.5}rem` }}>
-            <div className="flex items-center group hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md py-1.5 pr-2">
-                <button onClick={() => hasChildren && onToggle(node.id)} className="flex-shrink-0 w-6 h-6 flex items-center justify-center">
-                    {hasChildren && (isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />)}
-                </button>
-                {isEditing ? (
-                    <div className="flex-grow flex items-center">
-                        <input
-                            type="text"
-                            value={editText}
-                            onChange={(e) => setEditText(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleSave();
-                                if (e.key === 'Escape') handleCancel();
-                            }}
-                            autoFocus
-                            className="w-full px-2 py-1 bg-transparent border border-blue-500 rounded-md focus:outline-none"
-                        />
-                        <IconButton icon={<Check className="w-4 h-4 text-green-500" />} tooltip="Save" onClick={handleSave} />
-                        <IconButton icon={<X className="w-4 h-4 text-red-500" />} tooltip="Cancel" onClick={handleCancel} />
-                    </div>
-                ) : (
-                    <span className="flex-grow cursor-pointer" onClick={() => setIsEditing(true)}>
-                        {node.label}
-                    </span>
-                )}
-                <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <IconButton icon={<Pencil className="w-4 h-4" />} tooltip="Rename" onClick={() => setIsEditing(true)} />
-                    <IconButton icon={<Trash2 className="w-4 h-4 text-red-500" />} tooltip="Delete" onClick={() => onDelete(node.id)} />
+    const nodeHeader = (
+        <div className="flex items-center group w-full">
+            <button
+                onClick={(e) => {
+                    e.stopPropagation();
+                    if (hasChildren) setIsExpanded(!isExpanded);
+                }}
+                className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors ${!hasChildren ? 'invisible' : ''}`}
+                aria-label={isExpanded ? 'Collapse' : 'Expand'}
+            >
+                {hasChildren && (isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />)}
+            </button>
+            <div 
+                className="flex-grow ml-2 cursor-pointer"
+                onClick={() => onNodeClick(node)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onNodeClick(node); }}
+            >
+                <span className="font-semibold text-slate-700 dark:text-slate-200">{node.label}</span>
+            </div>
+        </div>
+    );
+    
+    if (level === 0) {
+        return (
+            <div className="bg-white dark:bg-slate-800/50 rounded-xl shadow-md mb-6 transition-all duration-300 ease-in-out hover:shadow-lg dark:hover:shadow-blue-900/30">
+                <div className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-t-xl transition-colors">
+                    {nodeHeader}
                 </div>
+                {isExpanded && hasChildren && (
+                    <div className="pl-6 pr-4 pb-4 border-t border-slate-200 dark:border-slate-700">
+                        <div className="relative mt-4">
+                            <div className="absolute left-3 top-0 bottom-2 w-0.5 bg-slate-200 dark:bg-slate-600 rounded"></div>
+                            <div className="space-y-1">
+                                {node.children?.map(child => (
+                                    <ConceptMapNode
+                                        key={child.id}
+                                        node={child}
+                                        level={level + 1}
+                                        onNodeClick={onNodeClick}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    }
+    
+    return (
+         <div className="relative pl-6">
+            <div className="flex items-center group hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md py-1 pr-2">
+                <div className="absolute left-[12px] top-1/2 -mt-px w-3 h-0.5 bg-slate-200 dark:bg-slate-600"></div>
+                {nodeHeader}
             </div>
             {isExpanded && hasChildren && (
-                <div className="mt-1">
-                    {renderChildren(node.children, level + 1)}
+                <div className="relative mt-1">
+                    <div className="absolute left-3 top-0 bottom-2 w-0.5 bg-slate-200 dark:bg-slate-600 rounded"></div>
+                    <div className="space-y-1">
+                        {node.children?.map(child => (
+                             <ConceptMapNode
+                                key={child.id}
+                                node={child}
+                                level={level + 1}
+                                onNodeClick={onNodeClick}
+                            />
+                        ))}
+                    </div>
                 </div>
             )}
         </div>
     );
 };
 
-const ConceptMap: React.FC<{ conceptMapData: ConceptMapData | null }> = ({ conceptMapData }) => {
-    const [map, setMap] = useState<ConceptMapData>([]);
-    const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({});
-
-    useEffect(() => {
-        if (conceptMapData) {
-            // Deep copy to make it editable locally
-            setMap(JSON.parse(JSON.stringify(conceptMapData)));
-            // Auto-expand all nodes by default for full visibility initially
-            const allNodeIds: Record<string, boolean> = {};
-            const expandAll = (nodes: ConceptNode[]) => {
-                nodes.forEach(node => {
-                    allNodeIds[node.id] = true;
-                    if (node.children && node.children.length > 0) {
-                        expandAll(node.children);
-                    }
-                });
-            };
-            expandAll(conceptMapData);
-            setExpandedNodes(allNodeIds);
-        }
-    }, [conceptMapData]);
-
-    const handleToggle = (nodeId: string) => {
-        setExpandedNodes(prev => ({ ...prev, [nodeId]: !prev[nodeId] }));
-    };
-
-    const handleUpdate = (nodeId: string, newLabel: string) => {
-        setMap(currentMap => updateNodeLabelRecursively(currentMap, nodeId, newLabel));
-    };
-
-    const handleDelete = (nodeId: string) => {
-        setMap(currentMap => deleteNodeRecursively(currentMap, nodeId));
-    };
-    
-    const renderNodes = (nodes: ConceptNode[], level: number): React.ReactNode => {
-        return nodes.map(node => (
-            <OutlineNode
-                key={node.id}
-                node={node}
-                level={level}
-                isExpanded={!!expandedNodes[node.id]}
-                onToggle={handleToggle}
-                onUpdate={handleUpdate}
-                onDelete={handleDelete}
-                renderChildren={renderNodes}
-            />
-        ));
-    };
-
-    if (!map || map.length === 0) {
+const ConceptMap: React.FC<{ 
+    conceptMapData: ConceptMapData | null;
+    onNodeClick: (node: ConceptNode) => void; 
+}> = ({ conceptMapData, onNodeClick }) => {
+    if (!conceptMapData || conceptMapData.length === 0) {
         return (
             <div className="text-center py-12">
                 <h2 className="text-2xl font-bold mb-2">Concept Map Not Generated</h2>
@@ -156,12 +100,17 @@ const ConceptMap: React.FC<{ conceptMapData: ConceptMapData | null }> = ({ conce
     }
 
     return (
-        <div className="h-full flex flex-col">
-            <h2 className="text-2xl sm:text-3xl font-bold mb-4">Concept Map Outline</h2>
-            <div className="flex-grow bg-white dark:bg-slate-800/50 rounded-lg shadow-inner p-4 overflow-y-auto">
-                <div className="space-y-1">
-                    {renderNodes(map, 0)}
-                </div>
+        <div className="h-full flex flex-col p-2">
+            <h2 className="text-2xl sm:text-3xl font-bold mb-6 px-2">Concept Map</h2>
+            <div className="flex-grow overflow-y-auto pr-2">
+                {conceptMapData.map(node => (
+                    <ConceptMapNode
+                        key={node.id}
+                        node={node}
+                        level={0}
+                        onNodeClick={onNodeClick}
+                    />
+                ))}
             </div>
         </div>
     );
