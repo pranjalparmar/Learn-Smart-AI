@@ -6,9 +6,10 @@ import IconButton from './IconButton';
 interface EditableFieldProps {
     value: string;
     onSave: (newValue: string) => void;
+    isQuestion?: boolean;
 }
 
-const EditableField: React.FC<EditableFieldProps> = React.memo(({ value, onSave }) => {
+const EditableField: React.FC<EditableFieldProps> = React.memo(({ value, onSave, isQuestion = false }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [text, setText] = useState(value);
 
@@ -16,6 +17,9 @@ const EditableField: React.FC<EditableFieldProps> = React.memo(({ value, onSave 
         onSave(text);
         setIsEditing(false);
     };
+
+    const baseClasses = "w-full cursor-pointer whitespace-pre-wrap";
+    const textClasses = isQuestion ? "font-semibold text-slate-800 dark:text-slate-100" : "text-slate-600 dark:text-slate-300";
 
     if (isEditing) {
         return (
@@ -30,9 +34,9 @@ const EditableField: React.FC<EditableFieldProps> = React.memo(({ value, onSave 
     }
 
     return (
-        <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap cursor-pointer" onClick={() => setIsEditing(true)}>
+        <div className={`${baseClasses} ${textClasses}`} onClick={() => setIsEditing(true)}>
             {value}
-        </p>
+        </div>
     );
 });
 
@@ -59,8 +63,8 @@ const Flashcard: React.FC<FlashcardProps> = React.memo(({ card, onUpdate, onDele
     };
 
     return (
-        <div className={`relative bg-white dark:bg-slate-800 rounded-xl shadow-md p-6 flex flex-col transition-all duration-300 group border-l-4 ${isFlagged ? 'border-orange-400' : statusColorMap[card.studyStatus]}`}>
-            <div className="absolute top-3 right-3 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className={`relative bg-white dark:bg-slate-800 rounded-lg shadow-md p-5 group border-l-4 ${isFlagged ? 'border-orange-400' : statusColorMap[card.studyStatus]}`}>
+            <div className="absolute top-2 right-2 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <IconButton
                     icon={<Flag className={`w-4 h-4 ${isFlagged ? 'fill-orange-400 text-orange-500' : ''}`} />}
                     tooltip={isFlagged ? 'Remove Flag' : 'Flag as difficult'}
@@ -75,17 +79,17 @@ const Flashcard: React.FC<FlashcardProps> = React.memo(({ card, onUpdate, onDele
                 />
             </div>
 
-            <div className="font-semibold text-lg mb-4 flex-grow pr-16">
-                <EditableField value={card.question} onSave={(newValue) => onUpdate({ ...card, question: newValue })} />
+            <div className="mb-3 pr-20">
+                <EditableField value={card.question} onSave={(newValue) => onUpdate({ ...card, question: newValue })} isQuestion />
             </div>
 
             {isAnswerVisible && (
-                <div className="mt-4 border-t pt-4 dark:border-slate-700 flex-grow">
+                <div className="border-t border-slate-200 dark:border-slate-700 pt-3">
                      <EditableField value={card.answer} onSave={(newValue) => onUpdate({ ...card, answer: newValue })} />
                 </div>
             )}
             
-            <div className="mt-6 flex justify-between items-center">
+            <div className="mt-4 flex justify-between items-center">
                 <button
                     onClick={() => setIsAnswerVisible(!isAnswerVisible)}
                     className="flex items-center text-sm font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"

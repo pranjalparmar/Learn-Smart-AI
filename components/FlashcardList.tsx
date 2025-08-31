@@ -42,7 +42,7 @@ const MainTopicFlashcards: React.FC<MainTopicFlashcardsProps> = React.memo(({ to
                     {shouldShowLoader ? (
                         <ContentLoader message={`Generating flashcards for ${topic.label}...`} />
                     ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 my-4">
+                        <div className="space-y-4 my-4">
                             {flashcards.map(card => (
                                 <Flashcard key={card.id} card={card} onUpdate={onUpdate} onDelete={onDelete} />
                             ))}
