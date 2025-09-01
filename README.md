@@ -10,6 +10,11 @@
 
 ---
 
+- **Project Documentation:** [https://github.com/pranjalparmar/Learn-Smart-AI/blob/main/Learn_Smart_AI_Documentation.pdf](https://github.com/pranjalparmar/Learn-Smart-AI/blob/main/Learn_Smart_AI_Documentation.pdf)
+- **C4 Documentation:** [https://github.com/pranjalparmar/Learn-Smart-AI/blob/main/C4_documentation.pdf](https://github.com/pranjalparmar/Learn-Smart-AI/blob/main/C4_documentation.pdf)
+
+---
+
 ## Project Overview
 
 Learn Smart AI addresses the common challenge students face: turning dense lecture notes into effective, tailored study resources. By uploading your materials (PDF, TXT, DOCX, or PPTX), you instantly get:
