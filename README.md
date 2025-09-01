@@ -10,7 +10,7 @@
 
 ---
 
-## 🚀 Project Overview
+## Project Overview
 
 Learn Smart AI addresses the common challenge students face: turning dense lecture notes into effective, tailored study resources. By uploading your materials (PDF, TXT, DOCX, or PPTX), you instantly get:
 
@@ -24,7 +24,7 @@ No sign-up or login is required — just click the link and start learning smart
 
 ---
 
-## 🎯 Core Features & Value
+## Core Features & Value
 
 - **One-click start:** Use instantly, no account needed.
 - **Multi-format file upload:** PDF, TXT, DOCX, PPTX.
@@ -38,7 +38,7 @@ No sign-up or login is required — just click the link and start learning smart
 
 ---
 
-## 🧠 How Does the AI Work?
+## How Does the AI Work?
 
 - Integrates Google Gemini LLM APIs.
 - AI parses your study material, constructs a hierarchical map, and generates study content rooted strictly in your uploaded notes — no generic answers!
@@ -46,7 +46,7 @@ No sign-up or login is required — just click the link and start learning smart
 
 ---
 
-## ✨ User Flow
+## User Flow
 
 1. **Open the app** via the live link. No signup!
 2. **Upload study material** (PDF, TXT, DOCX, or PPTX).
@@ -58,7 +58,7 @@ No sign-up or login is required — just click the link and start learning smart
 
 ---
 
-## 📦 Project Structure
+## Project Structure
 
 - `/components/` – UI building blocks: ConceptMap, FileUpload, FlashcardList, QASection, etc.
 - `/services/` – AI integration, file parsing, and export logic
@@ -69,7 +69,7 @@ No sign-up or login is required — just click the link and start learning smart
 
 ---
 
-## 🏗️ Technical Highlights
+## Technical Highlights
 
 - **Tech stack:** React, Vite, TypeScript, Google Gemini LLM API
 - **No database required** (stateless, all content generated client-side)
@@ -78,7 +78,7 @@ No sign-up or login is required — just click the link and start learning smart
 
 ---
 
-## 👩‍💻 Contact / Credits
+## Contact / Credits
 
 Created by [Pranjal Parmar](https://github.com/pranjalparmar) as an AI project submission.
 
